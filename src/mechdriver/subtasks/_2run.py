@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
+from hyperqueue import Client, Job
 
 from ..base import Status
 from ._0setup import INFO_FILE, SUBTASK_DIR, SubtasksInfo
@@ -32,13 +33,38 @@ def run(
     :param statuses: A comma-separated list of status to run or re-run
     :param tar: Tar the subtask data and save filesystem after running?
     """
-    return run_multiple(
-        paths=[path],
-        nodes=nodes,
-        dir_name=dir_name,
-        activation_hook=activation_hook,
-        statuses=statuses,
-    )
+    path = Path(path).resolve()
+    dir_path = path / dir_name
+    info_file = dir_path / INFO_FILE
+    info = SubtasksInfo.model_validate(yaml.safe_load(info_file.read_text()))
+
+    client = Client("/home/avcopan/.hq-server/hq-current")
+    job = Job()
+
+    key = "1"
+    tasks, *_ = info.task_groups
+    subtasks = [next((s for s in t.subtasks if s.key == key), None) for t in tasks]
+    print(f"subtasks = {subtasks}")
+    deps = ()
+    for subtask in subtasks:
+        sub_path = dir_path / subtask.path
+        subjob = job.program(
+            ["automech", "run", "-p", str(sub_path)],
+            cwd=sub_path,
+            stdout=sub_path / "out.log",
+            stderr="out.err",
+            deps=deps,
+        )
+        deps = (subjob,)
+
+    submitted = client.submit(job)
+
+    client.wait_for_jobs([submitted])
+
+    # print(f"path = {path}")
+    # print(f"dir_path = {dir_path}")
+    # print(f"info_file = {info_file}")
+    # print(f"info = {info}")
 
 
 def run_multiple(
@@ -63,9 +89,9 @@ def run_multiple(
     dir_paths = [p / dir_name for p in paths]
     info_files = [d / INFO_FILE for d in dir_paths]
     for dir_path in dir_paths:
-        assert dir_path.exists(), (
-            f"Path not found: {dir_path}.\nDid you run `automech subtasks setup` first?"
-        )
+        assert (
+            dir_path.exists()
+        ), f"Path not found: {dir_path}.\nDid you run `automech subtasks setup` first?"
 
     # Read in subtask information
     infos = [SubtasksInfo(**yaml.safe_load(f.read_text())) for f in info_files]

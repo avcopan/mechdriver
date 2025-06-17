@@ -154,15 +154,11 @@ def subtasks_run_(
         csed-00{08..10}
 
     """
-    paths = path
-    # For convenience, grab the Pixi activation hook automatically, if using Pixi
-    # environment and activation hook is `None`
-    result = subprocess.run(["pixi", "shell-hook"], capture_output=True, text=True)
-    if activation_hook is None and result.stdout:
-        activation_hook = result.stdout
+    assert len(path) == 1, f"path = {path}"
+    path, *_ = path
 
-    subtasks.run_multiple(
-        paths=paths,
+    subtasks.run(
+        path=path,
         nodes=nodes,
         dir_name=dir_name,
         activation_hook=activation_hook,

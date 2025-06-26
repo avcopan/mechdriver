@@ -1,118 +1,224 @@
 """Standalone script to run AutoMech subtasks in parallel on an Ad Hoc SSH Cluster"""
 
 import itertools
+import math
+import os
+import shutil
 import subprocess
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
+import networkx as nx
+import pandas as pd
+import pint
 import yaml
+from hyperqueue import Client, Job
+from hyperqueue.ffi.protocol import ResourceRequest
 
 from ..base import Status
-from ._0setup import INFO_FILE, SUBTASK_DIR, SubtasksInfo
+from ._0setup import INFO_FILE, SUBTASK_DIR, SubtasksInfo, Task
 from ._1status import log_paths_with_check_results, parse_subtask_status
 
 SCRIPT_DIR = Path(__file__).parent / "scripts"
 RUN_SCRIPT = str(SCRIPT_DIR / "run_adhoc.sh")
-
-
-def run(
-    path: str = ".",
-    nodes: Sequence[str] | None = None,
-    dir_name: str = SUBTASK_DIR,
-    activation_hook: str | None = None,
-    statuses: Sequence[Status] = (Status.TBD,),
-) -> None:
-    """Runs subtasks in parallel on Ad Hoc cluster
-
-    Assumes the subtasks were set up at this path using `automech subtasks setup`
-
-    :param path: The path where the AutoMech subtasks were set up
-    :param nodes: A list of nodes to run on
-    :param activation_hook: Shell commands for activating the AutoMech environment on the remote
-    :param statuses: A comma-separated list of status to run or re-run
-    :param tar: Tar the subtask data and save filesystem after running?
-    """
-    return run_multiple(
-        paths=[path],
-        nodes=nodes,
-        dir_name=dir_name,
-        activation_hook=activation_hook,
-        statuses=statuses,
-    )
+HOME = Path(os.environ.get("HOME"))
+HQ_PATH = HOME / ".hq-server" / "hq-current"
 
 
 def run_multiple(
     paths: Sequence[str | Path] = (".",),
-    nodes: Sequence[str] | None = None,
     dir_name: str = SUBTASK_DIR,
-    activation_hook: str | None = None,
     statuses: Sequence[Status] = (Status.TBD,),
+    auto_config_flags: str | None = None,
 ) -> None:
-    """Runs multiple sets of subtasks in parallel on Ad Hoc cluster
+    """Run multiple sets of subtasks in parallel using HyperQueue.
 
     Assumes the subtasks were set up at this path using `automech subtasks setup`
 
     :param paths: The paths where the AutoMech subtasks were set up
-    :param nodes: A list of nodes to run on
-    :param activation_hook: Shell commands for activating the AutoMech environment on the remote
+    :param dir_name: The subtask directory name
+    :param hyperqueue_path: The path to the HyperQueue server directory
     :param statuses: A comma-separated list of status to run or re-run
-    :param tar: Tar the subtask data and save filesystem after running?
+    :param auto_config: Automatically configure HyperQueue with these sbatch/qsub flags
     """
-    # Determine paths
-    paths = [Path(p).resolve() for p in paths]
-    dir_paths = [p / dir_name for p in paths]
-    info_files = [d / INFO_FILE for d in dir_paths]
-    for dir_path in dir_paths:
-        assert dir_path.exists(), (
-            f"Path not found: {dir_path}.\nDid you run `automech subtasks setup` first?"
-        )
+    if auto_config_flags is not None:
+        start_hyperqueue_server()
 
-    # Read in subtask information
-    infos = [SubtasksInfo(**yaml.safe_load(f.read_text())) for f in info_files]
+    # Set up the HyperQueue client
+    client = Client(HQ_PATH)
+
+    submitted_jobs = []
+    for path in paths:
+        job = create_job(
+            path=path,
+            dir_name=dir_name,
+            statuses=statuses,
+            auto_config_flags=auto_config_flags,
+        )
+        submitted_jobs.append(client.submit(job))
+
+    client.wait_for_jobs(submitted_jobs)
+
+
+def create_job(
+    path: str = ".",
+    dir_name: str = SUBTASK_DIR,
+    statuses: Sequence[Status] = (Status.TBD,),
+    auto_config_flags: str | None = None,
+) -> None:
+    """Run subtasks in parallel using HyperQueue.
+
+    Assumes the subtasks were set up at this path using `automech subtasks setup`
+
+    :param path: The path where the AutoMech subtasks were set up
+    :param dir_name: The subtask directory name
+    :param statuses: A comma-separated list of status to run or re-run
+    :param auto_config: Automatically configure HyperQueue with these sbatch/qsub flags
+    """
+    path = Path(path).resolve()
+    dir_path = path / dir_name
+    info_file = dir_path / INFO_FILE
+    info = SubtasksInfo.model_validate(yaml.safe_load(info_file.read_text()))
+
+    if auto_config_flags is not None:
+        all_tasks = list(itertools.chain.from_iterable(info.task_groups))
+        mem = max(t.mem for t in all_tasks)
+        cpus = max(t.nprocs for t in all_tasks)
+        add_hyperqueue_allocation(mem=mem, cpus=cpus, flags=auto_config_flags)
 
     # Make sure the run and save directories exist
-    for path, info in zip(paths, infos, strict=True):
-        (path / info.run_path).mkdir(exist_ok=True)
-        (path / info.save_path).mkdir(exist_ok=True)
+    info.run_path.mkdir(exist_ok=True)
+    info.save_path.mkdir(exist_ok=True)
 
-    # Zip tasks together in sequence
-    tasks_lst = list(
-        itertools.zip_longest(*(itertools.chain(*i.task_groups) for i in infos))
-    )
+    # Set up the HyperQueue job workflow
+    job = Job()
 
-    for tasks in tasks_lst:
-        mem = 0
-        nprocs = 0
-        work_paths = []
-        subtask_paths = []
-        subtask_logs = []
-        for path, task in (
-            (p, t) for p, t in zip(paths, tasks, strict=True) if t is not None
-        ):
-            mem = max(mem, task.mem)
-            nprocs = max(nprocs, task.nprocs)
+    # For now, just do this for the first task group
+    job_dct = {}
+    dep_graph = dependency_graph(info.task_groups)
+    for group_idx, task_group in enumerate(info.task_groups):
+        for task_idx, task in enumerate(task_group):
             for subtask in task.subtasks:
-                subtask_path = dir_name / subtask.path
-                subtask_path_abs = path / subtask_path
-                status = parse_subtask_status(
-                    log_paths_with_check_results(subtask_path_abs)
+                # Determine dependencies from dependency graph
+                job_key = (group_idx, task_idx, subtask.key)
+                dep_job_keys = dep_graph.predecessors(job_key)
+                deps = list(map(job_dct.get, dep_job_keys))
+
+                # Create the job
+                subtask_path = dir_path / subtask.path
+                stem = "out"
+                subtask_job = job.program(
+                    ["automech", "run", "-p", str(subtask_path), "-r", stem],
+                    cwd=subtask_path,
+                    stdout=subtask_path / f"{stem}.log",
+                    stderr=subtask_path / f"{stem}.log",
+                    deps=deps,
+                    resources=ResourceRequest(
+                        cpus=task.nprocs, resources={"mem": memory_mib(task.mem)}
+                    ),
                 )
-                if status in statuses:
-                    work_paths.extend([path] * subtask.nworkers)
-                    subtask_paths.extend([subtask_path] * subtask.nworkers)
-                    subtask_logs.extend(
-                        [f"out{i}.log" for i in range(subtask.nworkers)]
+
+                # Add the job to the job dictionary
+                job_dct[job_key] = subtask_job
+
+    return job
+
+
+def dependency_graph(task_groups: Sequence[Sequence[Task]]) -> nx.DiGraph:
+    """Create a subtask dependency graph from task groups."""
+    # Turn task groups into dataframes, and add a "keys" column
+    task_dfs = [pd.DataFrame([t.model_dump() for t in ts]) for ts in task_groups]
+    for task_df in task_dfs:
+        task_df["keys"] = task_df["subtasks"].apply(
+            lambda subtasks: [s["key"] for s in subtasks]
+        )
+
+    # Build the dependency graph
+    dep_graph = nx.DiGraph()
+    for group_idx, tasks in enumerate(task_groups):
+        # Add dependencies within the group
+        for task_idx, task in enumerate(tasks):
+            dep_task_idx = task_idx - 1 if task_idx > 0 else None
+            for subtask in task.subtasks:
+                dep_graph.add_node((group_idx, task_idx, subtask.key))
+                if dep_task_idx is not None:
+                    dep_graph.add_edge(
+                        (group_idx, dep_task_idx, subtask.key),
+                        (group_idx, task_idx, subtask.key),
                     )
 
-        if subtask_paths:
-            run_args = [
-                RUN_SCRIPT,
-                ",".join(map(str, work_paths)),
-                f"{mem}",
-                f"{nprocs}",
-                ",".join(map(str, subtask_paths)),
-                ",".join(subtask_logs),
-                ",".join(nodes),
-                "" if activation_hook is None else activation_hook,
-            ]
-            subprocess.run(run_args)
+        # Add dependencies between groups
+        if group_idx > 0:
+            group_idx0 = group_idx - 1
+            task_df0 = task_dfs[group_idx0]
+            task_idx0 = task_df0.index[-1]
+            subtask_keys0 = task_df0.iloc[task_idx0]["keys"]
+
+            task_df = task_dfs[group_idx]
+            task_idx = 0
+            subtask_keys = task_df.iloc[task_idx]["keys"]
+            for key0, key in itertools.product(subtask_keys0, subtask_keys):
+                dep_graph.add_edge(
+                    (group_idx0, task_idx0, key0), (group_idx, task_idx, key)
+                )
+
+    return dep_graph
+
+
+def memory_mib(mem: int) -> int:
+    """Convert memory in GB to MiB.
+
+    :param mem: Memory (GB)
+    :return: Memory (MiB)
+    """
+    return math.ceil(pint.Quantity(mem, "GB").m_as("MiB"))
+
+
+def start_hyperqueue_server() -> None:
+    """Re-start HyperQueue server."""
+    print("Re-starting HyperQueue server...")
+    subprocess.Popen(
+        ["hq", "server", "start"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+    )
+    # Wait up to 1 second for the file to appear
+    for _ in range(10):
+        time.sleep(0.1)
+        if os.path.exists(HQ_PATH):
+            break
+    assert os.path.exists(HQ_PATH), f"Could not start server at {HQ_PATH}"
+
+
+def add_hyperqueue_allocation(mem: int, cpus: int, flags: str) -> None:
+    """Create a HyperQueue allocation.
+
+    :param mem: Memory (GB)
+    :param nprocs: Number of processers
+    :param flags: Additional flags for sbatch/qsub
+    """
+    print(f"Adding HyperQueue allocation with mem={mem}GB, cpus={cpus}, flags={flags}")
+    alloc_args = [
+        "--time-limit",
+        "1h",
+        f"--cpus={cpus}",
+        f"--resource=mem=sum({memory_mib(mem)})",
+    ]
+
+    if shutil.which("sbatch"):
+        print("Detected SLURM on system. HyperQueue allocation command:")
+        args = [
+            "hq",
+            "alloc",
+            "add",
+            "slurm",
+            *alloc_args,
+            "--",
+            f"--mem={mem}G",
+            "--ntasks=1",
+            *flags.split(),
+        ]
+        print(" ".join(args))
+        subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    elif shutil.which("qsub"):
+        print("Detected PBS on system. HyperQueue allocation command:")
+        raise NotImplementedError("PBS auto-configuration not yet implemented.")

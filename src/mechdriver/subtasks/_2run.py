@@ -1,13 +1,17 @@
 """Standalone script to run AutoMech subtasks in parallel on an Ad Hoc SSH Cluster"""
 
 import itertools
+import math
 import os
+import shutil
 import subprocess
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
 import networkx as nx
 import pandas as pd
+import pint
 import yaml
 from hyperqueue import Client, Job
 from hyperqueue.ffi.protocol import ResourceRequest
@@ -19,13 +23,14 @@ from ._1status import log_paths_with_check_results, parse_subtask_status
 SCRIPT_DIR = Path(__file__).parent / "scripts"
 RUN_SCRIPT = str(SCRIPT_DIR / "run_adhoc.sh")
 HOME = Path(os.environ.get("HOME"))
+HQ_PATH = HOME / ".hq-server" / "hq-current"
 
 
 def run_multiple(
     paths: Sequence[str | Path] = (".",),
     dir_name: str = SUBTASK_DIR,
-    hyperqueue_path: str | None = None,
     statuses: Sequence[Status] = (Status.TBD,),
+    auto_config_flags: str | None = None,
 ) -> None:
     """Run multiple sets of subtasks in parallel using HyperQueue.
 
@@ -35,10 +40,13 @@ def run_multiple(
     :param dir_name: The subtask directory name
     :param hyperqueue_path: The path to the HyperQueue server directory
     :param statuses: A comma-separated list of status to run or re-run
+    :param auto_config: Automatically configure HyperQueue with these sbatch/qsub flags
     """
+    if auto_config_flags is not None:
+        start_hyperqueue_server()
+
     # Set up the HyperQueue client
-    hyperqueue_path = hyperqueue_path or HOME / ".hq-server" / "hq-current"
-    client = Client(hyperqueue_path)
+    client = Client(HQ_PATH)
 
     submitted_jobs = []
     for path in paths:
@@ -46,6 +54,7 @@ def run_multiple(
             path=path,
             dir_name=dir_name,
             statuses=statuses,
+            auto_config_flags=auto_config_flags,
         )
         submitted_jobs.append(client.submit(job))
 
@@ -56,6 +65,7 @@ def create_job(
     path: str = ".",
     dir_name: str = SUBTASK_DIR,
     statuses: Sequence[Status] = (Status.TBD,),
+    auto_config_flags: str | None = None,
 ) -> None:
     """Run subtasks in parallel using HyperQueue.
 
@@ -64,11 +74,18 @@ def create_job(
     :param path: The path where the AutoMech subtasks were set up
     :param dir_name: The subtask directory name
     :param statuses: A comma-separated list of status to run or re-run
+    :param auto_config: Automatically configure HyperQueue with these sbatch/qsub flags
     """
     path = Path(path).resolve()
     dir_path = path / dir_name
     info_file = dir_path / INFO_FILE
     info = SubtasksInfo.model_validate(yaml.safe_load(info_file.read_text()))
+
+    if auto_config_flags is not None:
+        all_tasks = list(itertools.chain.from_iterable(info.task_groups))
+        mem = max(t.mem for t in all_tasks)
+        cpus = max(t.nprocs for t in all_tasks)
+        add_hyperqueue_allocation(mem=mem, cpus=cpus, flags=auto_config_flags)
 
     # Make sure the run and save directories exist
     info.run_path.mkdir(exist_ok=True)
@@ -98,7 +115,7 @@ def create_job(
                     stderr=subtask_path / f"{stem}.log",
                     deps=deps,
                     resources=ResourceRequest(
-                        cpus=task.nprocs, resources={"mem": task.mem * 1000}
+                        cpus=task.nprocs, resources={"mem": memory_mib(task.mem)}
                     ),
                 )
 
@@ -147,3 +164,61 @@ def dependency_graph(task_groups: Sequence[Sequence[Task]]) -> nx.DiGraph:
                 )
 
     return dep_graph
+
+
+def memory_mib(mem: int) -> int:
+    """Convert memory in GB to MiB.
+
+    :param mem: Memory (GB)
+    :return: Memory (MiB)
+    """
+    return math.ceil(pint.Quantity(mem, "GB").m_as("MiB"))
+
+
+def start_hyperqueue_server() -> None:
+    """Re-start HyperQueue server."""
+    print("Re-starting HyperQueue server...")
+    subprocess.Popen(
+        ["hq", "server", "start"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+    )
+    # Wait up to 1 second for the file to appear
+    for _ in range(10):
+        time.sleep(0.1)
+        if os.path.exists(HQ_PATH):
+            break
+    assert os.path.exists(HQ_PATH), f"Could not start server at {HQ_PATH}"
+
+
+def add_hyperqueue_allocation(mem: int, cpus: int, flags: str) -> None:
+    """Create a HyperQueue allocation.
+
+    :param mem: Memory (GB)
+    :param nprocs: Number of processers
+    :param flags: Additional flags for sbatch/qsub
+    """
+    print(f"Adding HyperQueue allocation with mem={mem}GB, cpus={cpus}, flags={flags}")
+    alloc_args = [
+        "--time-limit",
+        "1h",
+        f"--cpus={cpus}",
+        f"--resource=mem=sum({memory_mib(mem)})",
+    ]
+
+    if shutil.which("sbatch"):
+        print("Detected SLURM on system. HyperQueue allocation command:")
+        args = [
+            "hq",
+            "alloc",
+            "add",
+            "slurm",
+            *alloc_args,
+            "--",
+            f"--mem={mem}G",
+            "--ntasks=1",
+            *flags.split(),
+        ]
+        print(" ".join(args))
+        subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    elif shutil.which("qsub"):
+        print("Detected PBS on system. HyperQueue allocation command:")
+        raise NotImplementedError("PBS auto-configuration not yet implemented.")

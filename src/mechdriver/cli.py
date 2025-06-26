@@ -137,24 +137,23 @@ def subtasks_setup_(
     help="The subtask directory name",
 )
 @click.option(
-    "-q",
-    "--hyperqueue-path",
-    default=None,
-    show_default=True,
-    help="Hyperqueue server directory path, /path/to/hq-current",
-)
-@click.option(
     "-s",
     "--statuses",
     default=f"{Status.TBD.value}",
     show_default=True,
     help="A comma-separated list of statuses to run or re-run",
 )
+@click.option(
+    "-f",
+    "--auto-config-flags",
+    default=None,
+    help="Automatically configure HyperQueue with these sbatch/qsub flags.",
+)
 def subtasks_run_(
     paths: str = (".",),
     dir_name: str = subtasks.SUBTASK_DIR,
-    hyperqueue_path: str | None = None,
     statuses: str = f"{Status.TBD.value}",
+    auto_config_flags: str | None = None,
 ):
     """Run subtasks in parallel using HyperQueue.
 
@@ -167,8 +166,8 @@ def subtasks_run_(
     subtasks.run_multiple(
         paths=paths,
         dir_name=dir_name,
-        hyperqueue_path=hyperqueue_path,
         statuses=list(map(Status, statuses.split(","))),
+        auto_config_flags=auto_config_flags,
     )
 
 

@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import networkx as nx
-import pandas as pd
 import pint
 import yaml
 from hyperqueue import Client, Job
@@ -48,24 +47,28 @@ def run_multiple(
     # Set up the HyperQueue client
     client = Client(HQ_PATH)
 
-    submitted_jobs = []
+    # Set up the HyperQueue job workflow
+    job = Job()
+
     for path in paths:
-        job = create_job(
+        job = setup_job(
             path=path,
             dir_name=dir_name,
             statuses=statuses,
             auto_config_flags=auto_config_flags,
+            job=job,
         )
-        submitted_jobs.append(client.submit(job))
 
-    client.wait_for_jobs(submitted_jobs)
+    submitted_job = client.submit(job)
+    client.wait_for_jobs([submitted_job])
 
 
-def create_job(
+def setup_job(
     path: str = ".",
     dir_name: str = SUBTASK_DIR,
     statuses: Sequence[Status] = (Status.TBD,),
     auto_config_flags: str | None = None,
+    job: Job | None = None,
 ) -> None:
     """Run subtasks in parallel using HyperQueue.
 
@@ -75,6 +78,7 @@ def create_job(
     :param dir_name: The subtask directory name
     :param statuses: A comma-separated list of status to run or re-run
     :param auto_config: Automatically configure HyperQueue with these sbatch/qsub flags
+    :param job: Append to an existing job
     """
     path = Path(path).resolve()
     dir_path = path / dir_name
@@ -92,7 +96,7 @@ def create_job(
     info.save_path.mkdir(exist_ok=True)
 
     # Set up the HyperQueue job workflow
-    job = Job()
+    job = job or Job()
 
     # For now, just do this for the first task group
     job_dct = {}
@@ -127,12 +131,18 @@ def create_job(
 
 def dependency_graph(task_groups: Sequence[Sequence[Task]]) -> nx.DiGraph:
     """Create a subtask dependency graph from task groups."""
-    # Turn task groups into dataframes, and add a "keys" column
-    task_dfs = [pd.DataFrame([t.model_dump() for t in ts]) for ts in task_groups]
-    for task_df in task_dfs:
-        task_df["keys"] = task_df["subtasks"].apply(
-            lambda subtasks: [s["key"] for s in subtasks]
+    # Store the task count and the subtasks keys for each group, for determining
+    # group-level dependencies
+    group_dct = {
+        group_idx: (len(tasks) - 1, [s.key for s in tasks[0].subtasks])
+        for group_idx, tasks in enumerate(task_groups)
+    }
+    group_idx0_dct = {
+        group_idx: next(
+            (i for i in reversed(range(group_idx)) if all(group_dct[i])), None
         )
+        for group_idx, _ in enumerate(task_groups)
+    }
 
     # Build the dependency graph
     dep_graph = nx.DiGraph()
@@ -149,19 +159,20 @@ def dependency_graph(task_groups: Sequence[Sequence[Task]]) -> nx.DiGraph:
                     )
 
         # Add dependencies between groups
-        if group_idx > 0:
-            group_idx0 = group_idx - 1
-            task_df0 = task_dfs[group_idx0]
-            task_idx0 = task_df0.index[-1]
-            subtask_keys0 = task_df0.iloc[task_idx0]["keys"]
-
-            task_df = task_dfs[group_idx]
+        group_idx0 = group_idx0_dct.get(group_idx)
+        if group_idx0 is not None:
+            task_idx0, subtask_keys0 = group_dct.get(group_idx0)
+            _, subtask_keys = group_dct.get(group_idx)
             task_idx = 0
-            subtask_keys = task_df.iloc[task_idx]["keys"]
             for key0, key in itertools.product(subtask_keys0, subtask_keys):
                 dep_graph.add_edge(
                     (group_idx0, task_idx0, key0), (group_idx, task_idx, key)
                 )
+
+    assert nx.is_weakly_connected(dep_graph), (
+        "Dependency graph must not be disconnected:\n"
+        f"group_idx0_dct = {group_idx0_dct}\ngroup_dct={group_dct}"
+    )
 
     return dep_graph
 

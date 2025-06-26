@@ -47,7 +47,9 @@ def run_(
         )
         with tempfile.NamedTemporaryFile(
             suffix=Extension.running, prefix=run_file_prefix, dir=path, buffering=0
-        ):
+        ) as running_file:
+            running_file.write(b"RUNNING")
+            running_file.flush()
             run(path=path, safemode_off=safemode_off)
 
 

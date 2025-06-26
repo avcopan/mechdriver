@@ -39,12 +39,12 @@ def run_(
     The AutoMech directory must contain an `inp/` subdirectory with the following
     required files: run.dat, theory.dat, models.dat, species.csv, mechanism.dat
     """
-    if not run_file_prefix.endswith("."):
-        run_file_prefix = f"{run_file_prefix}."
-
-    if not run_file_prefix:
+    if run_file_prefix is None:
         run(path=path, safemode_off=safemode_off)
     else:
+        run_file_prefix = (
+            run_file_prefix if run_file_prefix.endswith(".") else f"{run_file_prefix}."
+        )
         with tempfile.NamedTemporaryFile(
             suffix=Extension.running, prefix=run_file_prefix, dir=path, buffering=0
         ):

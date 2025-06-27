@@ -163,6 +163,7 @@ def subtasks_run_(
         path{1..3}
 
     """
+    paths = paths if paths else (".",)
     subtasks.run_multiple(
         paths=paths,
         dir_name=dir_name,

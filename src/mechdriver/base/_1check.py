@@ -21,14 +21,14 @@ class Extension:
     running = ".running"
 
 
-def check_log(path: str = ".", log: bool = False) -> tuple[Status, str | None]:
+def check_log(path: str | Path = ".", log: bool = False) -> tuple[Status, str | None]:
     """Check an AutoMech log file to see if it succeeded
 
     :param path: The path to the log file or directory. If the path is a directory, the
         log file must be called `out.log`.
     :param log: Whether to print the result to the terminal.
     """
-    path: Path = Path(path)
+    path = Path(path)
     assert path.exists(), f"Path does not exist: {path}"
     if path.is_dir():
         path /= "out.log"
@@ -51,8 +51,7 @@ def _check_log(log_path: str | Path) -> tuple[Status, str | None]:
     :return: The status and the line triggering the status, if applicable
     """
     log_path = Path(log_path)
-    log_stem = log_path.stem
-    run_glob = f"{log_stem}.*{Extension.running}"
+    lock_path = log_path.with_suffix(Extension.running)
     line = None
     if not log_path.exists():
         status = Status.TBD
@@ -60,9 +59,9 @@ def _check_log(log_path: str | Path) -> tuple[Status, str | None]:
 
     log = log_path.read_text().strip()
     has_exit_message = re.search("EXITING AUTOMECHANIC", log)
-    has_is_running_file = any(log_path.parent.glob(run_glob))
+    has_lock_file = lock_path.is_file()
     if not has_exit_message:
-        status = Status.RUNNING if has_is_running_file else Status.ERROR
+        status = Status.RUNNING if has_lock_file else Status.ERROR
         line = log.splitlines()[-1] if log else ""
         return (status, line)
 
@@ -75,7 +74,7 @@ def _check_log(log_path: str | Path) -> tuple[Status, str | None]:
     return (status, line)
 
 
-def colored_status_string(status: Status, width: int = None) -> str:
+def colored_status_string(status: Status, width: int | None = None) -> str:
     """Get a colored status string
 
     :param status: The status

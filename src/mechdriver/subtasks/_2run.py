@@ -14,15 +14,23 @@ import pint
 import yaml
 from hyperqueue import Client, Job
 from hyperqueue.ffi.protocol import ResourceRequest
+from hyperqueue.task.task import Task as HQTask
 
-from ..base import Status
+from ..base import Extension, Status
 from ._0setup import INFO_FILE, SUBTASK_DIR, SubtasksInfo, Task
 from ._1status import log_paths_with_check_results, parse_subtask_status
 
-SCRIPT_DIR = Path(__file__).parent / "scripts"
-RUN_SCRIPT = str(SCRIPT_DIR / "run_adhoc.sh")
-HOME = Path(os.environ.get("HOME"))
+HQTaskKey = tuple[int, int, str]
+
+HOME = Path(os.environ["HOME"])
 HQ_PATH = HOME / ".hq-server" / "hq-current"
+
+SCRIPT_DIR = Path(__file__).parent / "scripts"
+
+
+class Script:
+    ignore_error = str(SCRIPT_DIR / "ignore_error.sh")
+    lock_file = str(SCRIPT_DIR / "lock_file.sh")
 
 
 def run_multiple(
@@ -64,12 +72,12 @@ def run_multiple(
 
 
 def setup_job(
-    path: str = ".",
+    path: str | Path = ".",
     dir_name: str = SUBTASK_DIR,
     statuses: Sequence[Status] = (Status.TBD,),
     auto_config_flags: str | None = None,
     job: Job | None = None,
-) -> None:
+) -> Job:
     """Run subtasks in parallel using HyperQueue.
 
     Assumes the subtasks were set up at this path using `automech subtasks setup`
@@ -99,34 +107,63 @@ def setup_job(
     job = job or Job()
 
     # For now, just do this for the first task group
-    job_dct = {}
+    hq_task_dct: dict[HQTaskKey, HQTask] = {}
     dep_graph = dependency_graph(info.task_groups)
     for group_idx, task_group in enumerate(info.task_groups):
         for task_idx, task in enumerate(task_group):
             for subtask in task.subtasks:
                 # Determine dependencies from dependency graph
-                job_key = (group_idx, task_idx, subtask.key)
-                dep_job_keys = dep_graph.predecessors(job_key)
-                deps = list(map(job_dct.get, dep_job_keys))
+                hq_task_key = (group_idx, task_idx, subtask.key)
+                dep_hq_task_keys = dep_graph.predecessors(hq_task_key)
+                dep_hq_tasks = [hq_task_dct[k] for k in dep_hq_task_keys]
 
-                # Create the job
-                subtask_path = dir_path / subtask.path
-                stem = "out"
-                subtask_job = job.program(
-                    ["automech", "run", "-p", str(subtask_path), "-r", stem],
-                    cwd=subtask_path,
-                    stdout=subtask_path / f"{stem}.log",
-                    stderr=subtask_path / f"{stem}.log",
-                    deps=deps,
-                    resources=ResourceRequest(
-                        cpus=task.nprocs, resources={"mem": memory_mib(task.mem)}
-                    ),
+                hq_task = automech_hyperqueue_task(
+                    job=job,
+                    path=dir_path / subtask.path,
+                    log_path=dir_path / subtask.path / "out.log",
+                    deps=dep_hq_tasks,
+                    cpus=task.nprocs,
+                    mem=task.mem,
                 )
 
                 # Add the job to the job dictionary
-                job_dct[job_key] = subtask_job
+                hq_task_dct[hq_task_key] = hq_task
 
     return job
+
+
+def automech_hyperqueue_task(
+    job: Job,
+    path: str | Path,
+    log_path: str | Path,
+    deps: Sequence[HQTask],
+    cpus: int,
+    mem: int,
+    lock_file: bool = True,
+) -> HQTask:
+    """Create a HyperQueue task to run automech.
+
+    :param job: Job to add the task to
+    :param path: Path
+    :param stem: Output file stem
+    :param deps: Dependencies
+    :param cpus: Number of CPUs
+    :param mem: Amount of memory (GB)
+    :param lock_file: Whether to create a lock file while running
+    :return: HyperQueue task
+    """
+    lock_args = []
+    if lock_file:
+        lock_path = Path(log_path).with_suffix(Extension.running)
+        lock_args = [Script.lock_file, str(lock_path)]
+    return job.program(
+        [*lock_args, "automech", "run", "-p", str(path)],
+        cwd=path,
+        stdout=str(log_path),
+        stderr=str(log_path),
+        deps=deps,
+        resources=ResourceRequest(cpus=cpus, resources={"mem": memory_mib(mem)}),
+    )
 
 
 def dependency_graph(task_groups: Sequence[Sequence[Task]]) -> nx.DiGraph:
@@ -161,8 +198,8 @@ def dependency_graph(task_groups: Sequence[Sequence[Task]]) -> nx.DiGraph:
         # Add dependencies between groups
         group_idx0 = group_idx0_dct.get(group_idx)
         if group_idx0 is not None:
-            task_idx0, subtask_keys0 = group_dct.get(group_idx0)
-            _, subtask_keys = group_dct.get(group_idx)
+            task_idx0, subtask_keys0 = group_dct[group_idx0]
+            _, subtask_keys = group_dct[group_idx]
             task_idx = 0
             for key0, key in itertools.product(subtask_keys0, subtask_keys):
                 dep_graph.add_edge(

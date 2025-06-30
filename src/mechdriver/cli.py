@@ -1,10 +1,10 @@
 import subprocess
 import tempfile
-
+from collections.abc import Sequence
 import click
 
 from . import subtasks, tools
-from .base import Extension, Status, check_log, run
+from .base import Status, check_log, run
 
 
 @click.group()
@@ -17,16 +17,9 @@ def main():
 @click.option(
     "-p", "--path", default=".", show_default=True, help="The job run directory"
 )
-@click.option(
-    "-r",
-    "--run-file-prefix",
-    default=None,
-    show_default=False,
-    help="Create a file with this prefix while running.",
-)
 @click.option("-S", "--safemode-off", is_flag=True, help="Turn off safemode?")
 def run_(
-    path: str = ".", run_file_prefix: str | None = None, safemode_off: bool = False
+    path: str = ".",  safemode_off: bool = False
 ):
     """Run central workflow.
 
@@ -39,18 +32,7 @@ def run_(
     The AutoMech directory must contain an `inp/` subdirectory with the following
     required files: run.dat, theory.dat, models.dat, species.csv, mechanism.dat
     """
-    if run_file_prefix is None:
-        run(path=path, safemode_off=safemode_off)
-    else:
-        run_file_prefix = (
-            run_file_prefix if run_file_prefix.endswith(".") else f"{run_file_prefix}."
-        )
-        with tempfile.NamedTemporaryFile(
-            suffix=Extension.running, prefix=run_file_prefix, dir=path, buffering=0
-        ) as running_file:
-            running_file.write(b"RUNNING")
-            running_file.flush()
-            run(path=path, safemode_off=safemode_off)
+    run(path=path, safemode_off=safemode_off)
 
 
 @main.command("check-log")
@@ -152,7 +134,7 @@ def subtasks_setup_(
     help="Automatically configure HyperQueue with these sbatch/qsub flags.",
 )
 def subtasks_run_(
-    paths: str = (".",),
+    paths: Sequence[str] = (".",),
     dir_name: str = subtasks.SUBTASK_DIR,
     statuses: str = f"{Status.TBD.value}",
     auto_config_flags: str | None = None,

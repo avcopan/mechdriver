@@ -1,4 +1,4 @@
-"""Standalone script to run AutoMech subtasks in parallel on an Ad Hoc SSH Cluster"""
+"""Standalone script to run AutoMech subtasks in parallel using HyperQueue."""
 
 import itertools
 import math
@@ -140,6 +140,7 @@ def automech_hyperqueue_task(
     cpus: int,
     mem: int,
     lock_file: bool = True,
+    ignore_error: bool = False,
 ) -> HQTask:
     """Create a HyperQueue task to run automech.
 
@@ -156,8 +157,15 @@ def automech_hyperqueue_task(
     if lock_file:
         lock_path = Path(log_path).with_suffix(Extension.running)
         lock_args = [Script.lock_file, str(lock_path)]
+
+    ignore_args = []
+    if ignore_error:
+        ignore_args = [Script.ignore_error]
+
+    args = [*lock_args, *ignore_args, "automech", "run", "-p", str(path)]
+
     return job.program(
-        [*lock_args, "automech", "run", "-p", str(path)],
+        args=args,
         cwd=path,
         stdout=str(log_path),
         stderr=str(log_path),

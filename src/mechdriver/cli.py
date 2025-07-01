@@ -131,13 +131,20 @@ def subtasks_setup_(
     "-f",
     "--auto-config-flags",
     default=None,
-    help="Automatically configure HyperQueue with these sbatch/qsub flags.",
+    help="Sbatch/qsub flags for HyperQueue autoconfiguration",
+)
+@click.option(
+    "-e",
+    "--python-environment",
+    default=None,
+    help="Command to activate Python environment",
 )
 def subtasks_run_(
     paths: Sequence[str] = (".",),
     dir_name: str = subtasks.SUBTASK_DIR,
     statuses: str = f"{Status.TBD.value}",
     auto_config_flags: str | None = None,
+    python_environment: str | None = None,
 ):
     """Run subtasks in parallel using HyperQueue.
 
@@ -153,6 +160,7 @@ def subtasks_run_(
         dir_name=dir_name,
         statuses=list(map(Status, statuses.split(","))),
         auto_config_flags=auto_config_flags,
+        python_environment=python_environment,
     )
 
 

@@ -14,9 +14,11 @@ import pint
 import yaml
 from hyperqueue import Client, Job
 from hyperqueue.ffi.protocol import ResourceRequest
+from hyperqueue.task.function import PythonEnv
 from hyperqueue.task.task import Task as HQTask
 
 from ..base import Extension, Status
+from ..base import run as run_automech
 from ._0setup import INFO_FILE, SUBTASK_DIR, SubtasksInfo, Task
 from ._1status import log_paths_with_check_results, parse_subtask_status
 
@@ -38,6 +40,7 @@ def run_multiple(
     dir_name: str = SUBTASK_DIR,
     statuses: Sequence[Status] = (Status.TBD,),
     auto_config_flags: str | None = None,
+    python_environment: str | None = None,
 ) -> None:
     """Run multiple sets of subtasks in parallel using HyperQueue.
 
@@ -47,13 +50,18 @@ def run_multiple(
     :param dir_name: The subtask directory name
     :param hyperqueue_path: The path to the HyperQueue server directory
     :param statuses: A comma-separated list of status to run or re-run
-    :param auto_config: Automatically configure HyperQueue with these sbatch/qsub flags
+    :param auto_config_flags: Sbatch/qsub flags for HyperQueue autoconfiguration
+    :param python_environment: Command to activate Python environment
     """
     if auto_config_flags is not None:
         start_hyperqueue_server()
 
     # Set up the HyperQueue client
-    client = Client(HQ_PATH)
+    python_environment = python_environment or subprocess.check_output(
+        ["pixi", "shell-hook"], text=True
+    )
+
+    client = Client(HQ_PATH, python_env=PythonEnv(prologue=python_environment))
 
     # Set up the HyperQueue job workflow
     job = Job()
@@ -124,6 +132,8 @@ def setup_job(
                     deps=dep_hq_tasks,
                     cpus=task.nprocs,
                     mem=task.mem,
+                    lock_file=False,
+                    ignore_error=False,
                 )
 
                 # Add the job to the job dictionary
@@ -153,19 +163,8 @@ def automech_hyperqueue_task(
     :param lock_file: Whether to create a lock file while running
     :return: HyperQueue task
     """
-    lock_args = []
-    if lock_file:
-        lock_path = Path(log_path).with_suffix(Extension.running)
-        lock_args = [Script.lock_file, str(lock_path)]
-
-    ignore_args = []
-    if ignore_error:
-        ignore_args = [Script.ignore_error]
-
-    args = [*lock_args, *ignore_args, "automech", "run", "-p", str(path)]
-
-    return job.program(
-        args=args,
+    return job.function(
+        fn=run_automech,
         cwd=path,
         stdout=str(log_path),
         stderr=str(log_path),
@@ -253,12 +252,6 @@ def add_hyperqueue_allocation(mem: int, cpus: int, flags: str) -> None:
     :param flags: Additional flags for sbatch/qsub
     """
     print(f"Adding HyperQueue allocation with mem={mem}GB, cpus={cpus}, flags={flags}")
-    alloc_args = [
-        "--time-limit",
-        "1h",
-        f"--cpus={cpus}",
-        f"--resource=mem=sum({memory_mib(mem)})",
-    ]
 
     if shutil.which("sbatch"):
         print("Detected SLURM on system. HyperQueue allocation command:")
@@ -267,7 +260,10 @@ def add_hyperqueue_allocation(mem: int, cpus: int, flags: str) -> None:
             "alloc",
             "add",
             "slurm",
-            *alloc_args,
+            "--time-limit",
+            "1h",
+            f"--cpus={cpus}",
+            f"--resource=mem=sum({memory_mib(mem)})",
             "--",
             f"--mem={mem}G",
             "--ntasks=1",
@@ -277,4 +273,22 @@ def add_hyperqueue_allocation(mem: int, cpus: int, flags: str) -> None:
         subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     elif shutil.which("qsub"):
         print("Detected PBS on system. HyperQueue allocation command:")
-        raise NotImplementedError("PBS auto-configuration not yet implemented.")
+        args = [
+            "hq",
+            "alloc",
+            "add",
+            "pbs",
+            "--time-limit",
+            "1h",
+            f"--cpus={cpus}",
+            f"--resource=mem=sum({memory_mib(mem)})",
+            "--",
+            *flags.split(),
+        ]
+        print(" ".join(args))
+        subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    else:
+        msg = (
+            "No SLURM or PBS detected. Please manually configure HyperQueue allocation."
+        )
+        raise ValueError(msg)

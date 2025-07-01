@@ -167,9 +167,12 @@ def automech_hyperqueue_task(
     """
     run_ = run_automech
 
-    # Add lock file
+    # Create lock file if requested
     lock_path = Path(log_path).with_suffix(Extension.running)
     run_ = lock_wrapper(run_, lock_file=lock_path) if lock else run_
+
+    # Ignore errors if requested
+    run_ = ignore_error_wrapper(run_) if ignore_error else run_
 
     return job.function(
         fn=run_,
@@ -181,7 +184,26 @@ def automech_hyperqueue_task(
     )
 
 
-# Lock file to indicate that the job is running
+# Ignore error
+def ignore_error_wrapper(func: Callable[..., None]) -> Callable[..., None]:
+    """Generate function wrapper that creates lock file during function execution.
+
+    :param func: Function
+    :param lock_file: Lock file to create while running
+    :return: Wrapped function
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs) -> None:
+        try:
+            func(*args, **kwargs)
+        except Exception as err:
+            print(err)
+
+    return wrapper
+
+
+# Lock file (indicates that AutoMech is running)
 def lock_wrapper(
     func: Callable[..., None], lock_file: str | Path
 ) -> Callable[..., None]:

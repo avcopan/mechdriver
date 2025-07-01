@@ -134,8 +134,7 @@ def setup_job(
                     deps=dep_hq_tasks,
                     cpus=task.nprocs,
                     mem=task.mem,
-                    lock=True,
-                    ignore_error=False,
+                    workers=subtask.nworkers,
                 )
 
                 # Add the job to the job dictionary
@@ -146,15 +145,27 @@ def setup_job(
 
 def automech_hyperqueue_task(
     job: Job,
-    path: str | Path,
-    log_path: str | Path,
+    path: Path,
+    log_path: Path,
     deps: Sequence[HQTask],
     cpus: int,
     mem: int,
-    lock: bool = True,
-    ignore_error: bool = False,
+    workers: int = 1,
 ) -> HQTask:
-    """Create a HyperQueue task to run automech.
+    r"""Create a HyperQueue task to run automech.
+
+    When n > 1 workers are requested, this creates n instances of the task with the
+    original dependencies, ignoring any errors that occur. It then creates a final
+    instance of the task with these n tasks as dependencies, which does *not* ignore
+    errors. This serves to determine whether the n-worker task succeeded.
+
+    So the resulting task subgraph looks like this:
+
+                previous dependencies
+               /        |      ...   \
+            worker 1  worker 2 ...  worker n   <= ignore errors
+               \        |      ...   /
+             final task to confirm success
 
     :param job: Job to add the task to
     :param path: Path
@@ -162,13 +173,46 @@ def automech_hyperqueue_task(
     :param deps: Dependencies
     :param cpus: Number of CPUs
     :param mem: Amount of memory (GB)
-    :param lock: Whether to create a lock file while running
+    :param workers: How many workers to assign to this task
     :return: HyperQueue task
     """
+    if workers > 1:
+        log_paths = [
+            log_path.with_stem(f"{log_path.stem}{i:02d}") for i in range(workers)
+        ]
+        deps = [
+            _automech_hyperqueue_task(
+                job=job,
+                path=path,
+                log_path=p,
+                deps=deps,
+                cpus=cpus,
+                mem=mem,
+                ignore_error=True,
+            )
+            for p in log_paths
+        ]
+
+    return _automech_hyperqueue_task(
+        job=job, path=path, log_path=log_path, deps=deps, cpus=cpus, mem=mem
+    )
+
+
+def _automech_hyperqueue_task(
+    job: Job,
+    path: Path,
+    log_path: Path,
+    deps: Sequence[HQTask],
+    cpus: int,
+    mem: int,
+    lock: bool = True,
+    ignore_error: bool = False,
+) -> HQTask:
+    """Create a HyperQueue task to run automech."""
     run_ = run_automech
 
     # Create lock file if requested
-    lock_path = Path(log_path).with_suffix(Extension.running)
+    lock_path = log_path.with_suffix(Extension.running)
     run_ = lock_wrapper(run_, lock_file=lock_path) if lock else run_
 
     # Ignore errors if requested

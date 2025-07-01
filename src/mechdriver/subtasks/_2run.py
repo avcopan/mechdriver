@@ -1,5 +1,7 @@
 """Standalone script to run AutoMech subtasks in parallel using HyperQueue."""
 
+import contextlib
+import functools
 import itertools
 import math
 import os
@@ -8,6 +10,7 @@ import subprocess
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Callable
 
 import networkx as nx
 import pint
@@ -132,7 +135,7 @@ def setup_job(
                     deps=dep_hq_tasks,
                     cpus=task.nprocs,
                     mem=task.mem,
-                    lock_file=False,
+                    lock=True,
                     ignore_error=False,
                 )
 
@@ -149,7 +152,7 @@ def automech_hyperqueue_task(
     deps: Sequence[HQTask],
     cpus: int,
     mem: int,
-    lock_file: bool = True,
+    lock: bool = True,
     ignore_error: bool = False,
 ) -> HQTask:
     """Create a HyperQueue task to run automech.
@@ -160,17 +163,56 @@ def automech_hyperqueue_task(
     :param deps: Dependencies
     :param cpus: Number of CPUs
     :param mem: Amount of memory (GB)
-    :param lock_file: Whether to create a lock file while running
+    :param lock: Whether to create a lock file while running
     :return: HyperQueue task
     """
+    run_ = run_automech
+
+    # Add lock file
+    lock_path = Path(log_path).with_suffix(Extension.running)
+    run_ = lock_wrapper(run_, lock_file=lock_path) if lock else run_
+
     return job.function(
-        fn=run_automech,
+        fn=run_,
         cwd=path,
         stdout=str(log_path),
         stderr=str(log_path),
         deps=deps,
         resources=ResourceRequest(cpus=cpus, resources={"mem": memory_mib(mem)}),
     )
+
+
+# Lock file to indicate that the job is running
+def lock_wrapper(
+    func: Callable[..., None], lock_file: str | Path
+) -> Callable[..., None]:
+    """Generate function wrapper that creates lock file during function execution.
+
+    :param func: Function
+    :param lock_file: Lock file to create while running
+    :return: Wrapped function
+    """
+    lock_file = Path(lock_file)
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs) -> None:
+        with lock_file_context(lock_file):
+            func(*args, **kwargs)
+
+    return wrapper
+
+
+@contextlib.contextmanager
+def lock_file_context(lock_file: str | Path):
+    lock_file = Path(lock_file)
+
+    try:
+        lock_file.touch()
+        print(f"Created lock file {lock_file}")
+        yield
+    finally:
+        lock_file.unlink()
+        print(f"Removed lock file {lock_file}")
 
 
 def dependency_graph(task_groups: Sequence[Sequence[Task]]) -> nx.DiGraph:

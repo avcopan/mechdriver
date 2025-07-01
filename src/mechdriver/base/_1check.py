@@ -1,8 +1,8 @@
-""" Check an AutoMech log file for errors
-"""
+"""Check an AutoMech log file for errors"""
 
 import enum
 import re
+import time
 from pathlib import Path
 
 
@@ -16,6 +16,7 @@ class Status(enum.Enum):
     TBD = "TBD"  # Not yet started
     OK_1E = "OK_1E"  # All but 1 log file succeeded
     OK_2E = "OK_2E"  # All but 2 log files succeeded
+
 
 class Extension:
     running = ".running"
@@ -60,13 +61,17 @@ def _check_log(log_path: str | Path) -> tuple[Status, str | None]:
     log = log_path.read_text().strip()
     has_exit_message = re.search("EXITING AUTOMECHANIC", log)
     has_lock_file = lock_path.is_file()
+    has_recent_log = (time.time() - log_path.stat().st_mtime) < 60
+    error_match = re.search(r".*ERROR.*", log, flags=re.IGNORECASE)
+    has_recent_log_no_error = has_recent_log and not error_match
     if not has_exit_message:
-        status = Status.RUNNING if has_lock_file else Status.ERROR
+        status = (
+            Status.RUNNING if has_lock_file or has_recent_log_no_error else Status.ERROR
+        )
         line = log.splitlines()[-1] if log else ""
         return (status, line)
 
     warning_match = re.search(r".*(?<!Future)Warning.*", log, flags=re.IGNORECASE)
-    error_match = re.search(r"ERROR", log)
     status = Status.WARNING if warning_match else Status.OK
     status = Status.ERROR if error_match else status
     line = warning_match.group(0) if warning_match else None

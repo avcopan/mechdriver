@@ -8,9 +8,8 @@ import os
 import shutil
 import subprocess
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable
 
 import networkx as nx
 import pint
@@ -274,7 +273,7 @@ def memory_mib(mem: int) -> int:
 
 def start_hyperqueue_server() -> None:
     """Re-start HyperQueue server."""
-    print("Re-starting HyperQueue server...")
+    print("Starting HyperQueue server...")
     subprocess.Popen(
         ["hq", "server", "start"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
     )

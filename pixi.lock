@@ -394,7 +394,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstandard-0.23.0-py311h5cd10c7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.6-ha6fb4c9_0.conda
       - pypi: https://files.pythonhosted.org/packages/15/80/44286939ca215e88fa827b2aeb6fa3fd2b4a7af322485c7170d6f9fd96e0/cloudpickle-2.2.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/dd/91/da846638ddffa10b2321df6b4d2874dd89cb933007f93e9d04ff60737150/hyperqueue-0.20.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/cc/a7/b6c37d6ead398922a75cbb63fe3e02a70026e74659e1e0e443ea1af3641a/hyperqueue-0.22.0-cp39-abi3-manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl
       - pypi: ./
       - pypi: ./src/_autochem
@@ -779,7 +779,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstandard-0.23.0-py311h9ecbd09_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.7-hb8e6e7a_2.conda
       - pypi: https://files.pythonhosted.org/packages/15/80/44286939ca215e88fa827b2aeb6fa3fd2b4a7af322485c7170d6f9fd96e0/cloudpickle-2.2.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/dd/91/da846638ddffa10b2321df6b4d2874dd89cb933007f93e9d04ff60737150/hyperqueue-0.20.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/cc/a7/b6c37d6ead398922a75cbb63fe3e02a70026e74659e1e0e443ea1af3641a/hyperqueue-0.22.0-cp39-abi3-manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl
       - pypi: ./
       - pypi: ./src/_autochem
@@ -1172,7 +1172,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/8f/d7/9322c609343d929e75e7e5e6255e614fcc67572cfd083959cdef3b7aad79/docutils-0.21.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/43/09/2aea36ff60d16dd8879bdb2f5b3ee0ba8d08cbbdcdfe870e695ce3784385/execnet-2.1.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/4d/36/2a115987e2d8c300a974597416d9de88f2444426de9571f4b59b2cca3acc/filelock-3.18.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/dd/91/da846638ddffa10b2321df6b4d2874dd89cb933007f93e9d04ff60737150/hyperqueue-0.20.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/cc/a7/b6c37d6ead398922a75cbb63fe3e02a70026e74659e1e0e443ea1af3641a/hyperqueue-0.22.0-cp39-abi3-manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/7a/cd/18f8da995b658420625f7ef13f037be53ae04ec5ad33f9b718240dcfd48c/identify-2.6.12-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ff/62/85c4c919272577931d407be5ba5d71c20f0b616d31a0befe0ae45bb79abd/imagesize-1.4.1-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl
@@ -1624,7 +1624,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstandard-0.23.0-py311h9ecbd09_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.7-hb8e6e7a_2.conda
       - pypi: https://files.pythonhosted.org/packages/15/80/44286939ca215e88fa827b2aeb6fa3fd2b4a7af322485c7170d6f9fd96e0/cloudpickle-2.2.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/dd/91/da846638ddffa10b2321df6b4d2874dd89cb933007f93e9d04ff60737150/hyperqueue-0.20.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/cc/a7/b6c37d6ead398922a75cbb63fe3e02a70026e74659e1e0e443ea1af3641a/hyperqueue-0.22.0-cp39-abi3-manylinux_2_28_x86_64.whl
       - pypi: ./
       - pypi: ./src/_autochem
       - pypi: ./src/_autofile
@@ -2009,7 +2009,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.7-hb8e6e7a_2.conda
       - pypi: https://files.pythonhosted.org/packages/15/80/44286939ca215e88fa827b2aeb6fa3fd2b4a7af322485c7170d6f9fd96e0/cloudpickle-2.2.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/43/09/2aea36ff60d16dd8879bdb2f5b3ee0ba8d08cbbdcdfe870e695ce3784385/execnet-2.1.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/dd/91/da846638ddffa10b2321df6b4d2874dd89cb933007f93e9d04ff60737150/hyperqueue-0.20.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/cc/a7/b6c37d6ead398922a75cbb63fe3e02a70026e74659e1e0e443ea1af3641a/hyperqueue-0.22.0-cp39-abi3-manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/2f/de/afa024cbe022b1b318a3d224125aa24939e99b4ff6f22e0ba639a2eaee47/pytest-8.4.0-py3-none-any.whl
@@ -4399,15 +4399,15 @@ packages:
   - pkg:pypi/hyperframe?source=hash-mapping
   size: 17397
   timestamp: 1737618427549
-- pypi: https://files.pythonhosted.org/packages/dd/91/da846638ddffa10b2321df6b4d2874dd89cb933007f93e9d04ff60737150/hyperqueue-0.20.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+- pypi: https://files.pythonhosted.org/packages/cc/a7/b6c37d6ead398922a75cbb63fe3e02a70026e74659e1e0e443ea1af3641a/hyperqueue-0.22.0-cp39-abi3-manylinux_2_28_x86_64.whl
   name: hyperqueue
-  version: 0.20.0
-  sha256: 516f3413fe86dc874e72b827174ea39292a1626e19d169eb0fcb294b83e74c96
+  version: 0.22.0
+  sha256: 895ac8b7fae82b073c47f519753197c4ad9ae5db95eaf4b48c05ed9e0f01545f
   requires_dist:
   - cloudpickle>=2.0,<3
   - tqdm>=4.60,<5
   - pydot>=1.4,<2 ; extra == 'all'
-  requires_python: '>=3.6'
+  requires_python: '>=3.9'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/icu-73.2-h59595ed_0.conda
   sha256: e12fd90ef6601da2875ebc432452590bc82a893041473bc1c13ef29001a73ea8
   md5: cc47e1facc155f91abd89b11e48e72ff
@@ -7551,9 +7551,9 @@ packages:
 - pypi: ./
   name: mechdriver
   version: 2025.6.12
-  sha256: d508f7f21026d8d33d46d4b3aacae8cc3022aac8f6ae94feb381a6371cd14c94
+  sha256: 8a3fa2dc65f25fe79862f675e3d6b94a1f1a9df34ea276a673f1fb0d83be088c
   requires_dist:
-  - hyperqueue>=0.20.0,<0.21
+  - hyperqueue>=0.22.0,<0.23
   requires_python: '>=3.11'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/mercantile-1.2.1-pyhd8ed1ab_1.conda

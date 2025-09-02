@@ -328,8 +328,12 @@ def _qchem(method_dct, prog, job=None, geo=None, spc_info=None):
     # Build the submission script string
     script_str = SCRIPT_DCT[prog].format(nprocs)
 
+    # Build the options dictionary
+    machine_options = [f'%PAL NPROCS {nprocs} END']
+
     kwargs = {
         'memory': memory,
+        'machine_options': machine_options,
     }
 
     return script_str, kwargs

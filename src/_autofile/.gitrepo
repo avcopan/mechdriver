@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/Auto-Mech/autofile.git
 	branch = dev
-	commit = b41f8a075bf00814512a5782cdd129655141b01d
-	parent = 2f53df96a3786e6cad67320d4961d91e20d82bf1
+	commit = 5ed7ffcde293c342edd1cb13af3500bbec349713
+	parent = fe52472a83fbdfffd300fe23862ef75f0c29ffb8
 	method = rebase
 	cmdver = 0.4.9

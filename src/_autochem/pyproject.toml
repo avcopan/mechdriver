@@ -1,52 +1,105 @@
 [project]
 name = "autochem"
-version = "2025.7.21"
+version = "2025.10.0"
 description = "Cheminformatics libraries used by the AutoMech project"
 readme = "README.md"
-authors = [
-    { name = "Andreas Copan", email = "avcopan@gmail.com" }
-]
+authors = [{name = "avcopan", email = "avcopan@gmail.com"}]
+dependencies = []
 requires-python = ">= 3.11"
-dependencies = [
-    "altair",
-    "ipython>=8.15",
-    "more-itertools",
-    "networkx>=3.3",
-    "numpy>=1.26",
-    "pint",
-    "py3dmol",
-    "pyparsing",
-    "pyyaml",
-    "qcelemental",
-    "rdkit",
-    "scipy>=1.12",
-    "xarray>=2023.8",
-]
+
+[dependency-groups]
+test = ["pytest", "pytest-xdist[psutil]"]
+lint = ["lefthook", "mypy", "pylint", "ruff"]
+docs = ["myst-parser", "sphinx", "sphinx-autodoc-typehints", "sphinx-book-theme"]
+dev = ["jupyter"]
 
 [build-system]
-requires = ["hatchling"]
 build-backend = "hatchling.build"
+requires = ["hatchling"]
 
+# Hatchling configurations
 [tool.hatch.build.targets.sdist]
 include = ["autochem", "automol", "autoreact", "phydat", "molsym"]
 
 [tool.hatch.build.targets.wheel]
 include = ["autochem", "automol", "autoreact", "phydat", "molsym"]
 
-[dependency-groups]
-dev = [
-    "jupyter",
-    "lefthook",
-    "mypy",
-    "myst-parser",
-    "pylint",
-    "pytest",
-    "pytest-xdist[psutil]",
-    "ruff",
-    "sphinx",
-    "sphinx-autodoc-typehints",
-    "sphinx-book-theme",
-]
+# Pixi configurations
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+preview = ["pixi-build"]
+
+#   - Build
+[tool.pixi.package] 
+name = "autochem"
+
+[tool.pixi.package.build] 
+backend = { name = "pixi-build-python", version = "==0.3.2" }
+
+[tool.pixi.package.host-dependencies] 
+hatchling = "==1.26.3"
+
+[tool.pixi.package.run-dependencies] 
+altair = ">=5.5.0"
+ipython = ">=8.15"
+more-itertools = ">=10.8.0"
+networkx = ">=3.3"
+numpy = ">=1.26"
+pint = ">=0.25"
+py3dmol = ">=2.5.3"
+pyparsing = ">=3.2.5"
+pyyaml = ">=6.0.3"
+qcelemental = ">=0.29.0"
+rdkit = ">=2025.9.1"
+scipy = ">=1.12"
+xarray = ">=2023.8"
+
+#   - Other
+[tool.pixi.pypi-dependencies]
+autochem = { path = ".", editable = true }
+
+[tool.pixi.dependencies]
+altair = ">=5.5.0"
+ipython = ">=8.15"
+more-itertools = ">=10.8.0"
+networkx = ">=3.3"
+numpy = ">=1.26"
+pint = ">=0.25"
+py3dmol = ">=2.5.3"
+pyparsing = ">=3.2.5"
+pyyaml = ">=6.0.3"
+qcelemental = ">=0.29.0"
+rdkit = ">=2025.9.1"
+scipy = ">=1.12"
+xarray = ">=2023.8"
+
+[tool.pixi.feature.build.dependencies]
+rattler-build = ">=0.47.1"
+
+[tool.pixi.environments]
+test = ["test"]
+lint = ["lint"]
+docs = ["docs"]
+build = ["build"]
+dev = ["test", "lint", "docs", "build", "dev"]
+
+[tool.pixi.feature.test.tasks]
+test-automol = "pytest -n auto -v automol"
+test-autochem = "pytest -v autochem"
+test-autoreact = "pytest -v autoreact"
+test = { depends-on = ["test-automol", "test-autochem", "test-autoreact"] }
+
+[tool.pixi.feature.lint.tasks]
+pre-commit = "lefthook run pre-commit --all-files"
+pre-push = "lefthook run pre-push --all-files"
+lint = { depends-on = ["pre-commit", "pre-push"] }
+
+[tool.pixi.feature.docs.tasks]
+build-docs = { cmd = "make html", cwd = "docs" }
+
+[tool.pixi.feature.build.tasks]
+upload = "rattler-build upload anaconda -o Auto-Mech *.conda"
 
 # Ruff configurations
 [tool.ruff]

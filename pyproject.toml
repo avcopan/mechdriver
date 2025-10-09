@@ -1,13 +1,10 @@
 [project]
-authors = [{name = "Andreas Copan", email = "avcopan@gmail.com"}]
 name = "mechdriver"
-requires-python = ">= 3.11"
-version = "2025.8.13"
+version = "2025.10.0"
+description = "Automated workflow routines for calculating theoretical data for reaction mechanisms"
+readme = "README.md"
 dependencies = ["hyperqueue"]
-
-[build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling"]
+requires-python = ">= 3.11"
 
 [project.scripts]
 automech = 'mechdriver.cli:main'
@@ -19,11 +16,47 @@ docs = ["sphinx", "myst-parser", "sphinx-book-theme", "sphinx-autodoc-typehints"
 new_arch = ["hyperqueue>=0.24.0"]
 dev = ["jupytext"]
 
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+# Hatchling configurations
+[tool.hatch.build.targets.sdist]
+only-include = ["src/mechdriver", "src/drivers", "src/mechlib", "src/mechroutines"]
+sources = { "src" = "" }
+
+[tool.hatch.build.targets.wheel]
+only-include = ["src/mechdriver", "src/drivers", "src/mechlib", "src/mechroutines"]
+sources = { "src" = "" }
+
 # Pixi configurations
 [tool.pixi.workspace]
-channels = ["conda-forge", "auto-mech"]
+channels = ["conda-forge", "Auto-Mech"]
 platforms = ["linux-64"]
+preview = ["pixi-build"]
 
+#   - Build
+[tool.pixi.package]
+name = "mechdriver"
+
+[tool.pixi.package.build]
+backend = { name = "pixi-build-python", version = "==0.3.2" }
+
+[tool.pixi.package.host-dependencies]
+hatchling = "==1.26.3"
+
+[tool.pixi.package.run-dependencies]
+pydantic = "*"
+pac99 = "*"
+projrot = "*"
+thermp = "*"
+mess-static = "*"
+autochem = { path = "src/_autochem" }
+autoio = { path = "src/_autoio" }
+autofile = { path = "src/_autofile" }
+mechanalyzer = { path = "src/_mechanalyzer" }
+
+#   - Development environments
 [tool.pixi.pypi-dependencies]
 mechdriver = { path = ".", editable = true }
 autochem = { path = "src/_autochem", editable = true }
@@ -31,7 +64,37 @@ autoio = { path = "src/_autoio", editable = true }
 autofile = { path = "src/_autofile", editable = true }
 mechanalyzer = { path = "src/_mechanalyzer", editable = true }
 
-# Tasks
+[tool.pixi.dependencies]
+pydantic = "*"
+pac99 = "*"
+projrot = "*"
+thermp = "*"
+mess-static = "*"
+
+[tool.pixi.feature.build.dependencies]
+rattler-build = ">=0.47.1"
+
+[tool.pixi.feature.dev.dependencies]
+gh = "*"
+
+[tool.pixi.system-requirements]
+linux = "3.10"
+libc = { family="glibc", version="2.17" }
+
+[tool.pixi.feature.new_arch.system-requirements]
+linux = "3.10"  # Newer architecture required for current HyperQueue version
+libc = { family="glibc", version="2.28" }
+
+[tool.pixi.environments]
+test = ["test"]
+test2 = ["test", "new_arch"]
+lint = ["lint"]
+docs = ["docs"]
+build = ["build"]
+dev = ["test", "lint", "docs", "build", "dev"]
+dev2 = ["test", "lint", "docs", "build", "dev", "new_arch"]
+
+#   - Tasks
 [tool.pixi.tasks]
 extra-dev-installs = { cmd = "./scripts/extra-dev-installs.sh", cwd = "." }
 subrepo-push = { cmd = "./scripts/subrepo-push.sh", cwd = "." }
@@ -43,77 +106,6 @@ test = { cmd = "./scripts/test.py" }
 gh-auth = { cmd = "gh auth login -s workflow", cwd = "." }
 subrepo-pull = { cmd = "./scripts/subrepo-pull.sh", cwd = "." }
 vis = { cmd = "./scripts/vis.sh" }
-
-[tool.pixi.dependencies]
-python = "3.11.*"
-# AutoChem dependencies
-numpy = "1.26.*"
-scipy = "1.12.*"
-networkx = "3.3.*"
-xarray = "2023.8.*"
-ipython = "8.15.*"
-altair-all = "*"
-pint = "*"
-ipywidgets = "*"
-jupyter = "*"
-more-itertools = "*"
-py3dmol = "*"
-pyparsing = "*"
-pyyaml = "*"
-qcelemental = "*"
-rdkit = "*"
-# AutoIO dependencies
-mako = "*"
-# AutoFile dependencies
-# MechAnalyzer dependencies
-pandas = "2.1.*"
-matplotlib = "3.8.*"
-click = "*"
-python-igraph = "*"
-# MechDriver dependencies
-pydantic = "*"
-parallel = "*"
-pac99 = "*"
-projrot = "*"
-thermp = "*"
-mess-static = "*"
-
-[tool.pixi.system-requirements]
-linux = "3.10"
-libc = { family="glibc", version="2.17" }
-
-# Newer architecture can be used to install more recent HyperQueue versions
-[tool.pixi.feature.new_arch.system-requirements]
-linux = "3.10"
-libc = { family="glibc", version="2.28" }
-
-[tool.pixi.feature.build.dependencies]
-cmake = ">=3.30.0,<3.31"
-cxx-compiler = ">=1.7.0,<1.8"
-fortran-compiler = ">=1.7.0,<1.8"
-c-compiler = ">=1.7.0,<1.8"
-make = ">=4.3,<5"
-rattler-build = ">=0.18.1,<0.19"
-libgfortran = ">=3.0.0,<3.1"
-libgcc = ">=7.2.0,<7.3"
-libstdcxx-ng = ">=14.1.0,<14.2"
-
-[tool.pixi.feature.proto.dependencies]
-tqdm = "*"
-pandera = "*"
-polars = "<1.29"
-cantera = "*"
-pyarrow = "*"
-
-[tool.pixi.feature.dev.dependencies]
-gh = "*"
-
-[tool.pixi.environments]
-test = ["test"]
-dev = ["test", "lint", "docs", "dev"]
-dev2 = ["test", "lint", "docs", "dev", "new_arch"]
-build = ["build"]
-proto = ["proto"]
 
 # Ruff configurations
 [tool.ruff]

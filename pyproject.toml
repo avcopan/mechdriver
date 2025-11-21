@@ -143,7 +143,7 @@ vis = { cmd = "./scripts/vis.sh" }
 dev-test = { cmd = "./scripts/test.py" }
 
 [tool.pixi.feature.build.tasks]
-simple-setup = { cmd = "./scripts/dev-setup-repos.sh auto-mech yes http", cwd = "." }
+simple-setup = { cmd = "./scripts/dev-setup-repos.sh auto-mech no http", cwd = "." }
 upload = "rattler-build upload anaconda -o Auto-Mech *.conda"
 current-version = "bumpver show -n | awk -F': ' '/Current Version: / {print $2}'"
 

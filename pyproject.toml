@@ -143,3 +143,4 @@ dev-test = { cmd = "./scripts/test.py" }
 
 [tool.pixi.feature.build.tasks]
 upload = "rattler-build upload anaconda -o Auto-Mech *.conda"
+simple-setup = { cmd = "./scripts/dev-setup-repos.sh auto-mech yes http", cwd = "." }

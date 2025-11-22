@@ -52,7 +52,7 @@ jobs:
         with:
           environments: build
           locked: false
-          manifest-path: mechdriver/pixi.yaml
+          manifest-path: mechdriver/pyproject.yaml
 
       # Test build (release workflow builds and uploads)
       - name: Build

@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
+    defaults:
+      run:
+        working-directory: mechdriver
 
     steps:
       # TEMPORARY (try simple-setup)
@@ -46,7 +49,6 @@ jobs:
       - name: List parent directory contents
         run: |
           ls -la .
-          ls -la ./mechdriver
 
       # Environment
       - name: Set up Pixi

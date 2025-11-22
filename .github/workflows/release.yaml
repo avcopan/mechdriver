@@ -1,22 +1,31 @@
 name: release
 
-on:
-  pull_request_target:
-    types: [closed]
+# TEMPORARY
+on: 
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# on:
+#   pull_request_target:
+#     types: [closed]
 
 permissions:
   contents: write
 
 jobs:
   release:
-    if: >
-      github.event.pull_request.merged == true && (
-        contains(github.event.pull_request.labels.*.name, 'release:patch') ||
-        contains(github.event.pull_request.labels.*.name, 'release:major')
-      )
+    # if: >
+    #   github.event.pull_request.merged == true && (
+    #     contains(github.event.pull_request.labels.*.name, 'release:patch') ||
+    #     contains(github.event.pull_request.labels.*.name, 'release:major')
+    #   )
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
+    defaults:
+      run:
+        working-directory: mechdriver
 
     steps:
       # 1. Checkout the repositories
@@ -25,30 +34,31 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
+          path: mechdriver
 
       - name: Checkout autochem
         uses: actions/checkout@v4
         with:
           repository: Auto-Mech/autochem
-          path: ../autochem
+          path: autochem
 
       - name: Checkout autoio
         uses: actions/checkout@v4
         with:
           repository: Auto-Mech/autoio
-          path: ../autoio
+          path: autoio
 
       - name: Checkout autofile
         uses: actions/checkout@v4
         with:
           repository: Auto-Mech/autofile
-          path: ../autofile
+          path: autofile
 
       - name: Checkout mechanalyzer
         uses: actions/checkout@v4
         with:
           repository: Auto-Mech/mechanalyzer
-          path: ../mechanalyzer
+          path: mechanalyzer
 
       # 2. Setup environment
       - name: Set up Pixi
@@ -82,11 +92,11 @@ jobs:
         run: |
           pixi build
 
-      - name: Upload
-        run: |
-          pixi run -e build upload
-        env:
-          ANACONDA_API_KEY: ${{ secrets.ANACONDA_API_KEY }}
+      # - name: Upload
+      #   run: |
+      #     pixi run -e build upload
+      #   env:
+      #     ANACONDA_API_KEY: ${{ secrets.ANACONDA_API_KEY }}
 
       # 5. Create release
       - name: Create GitHub Release

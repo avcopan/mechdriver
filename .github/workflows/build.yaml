@@ -18,13 +18,6 @@ jobs:
         with:
           path: mechdriver
 
-      # Environment
-      - name: Set up Pixi
-        uses: prefix-dev/setup-pixi@v0.8.9
-        with:
-          environments: build
-          frozen: true
-
       # TEMPORARY (try simple-setup)
       - name: Checkout autochem
         uses: actions/checkout@v4
@@ -52,6 +45,14 @@ jobs:
 
       - name: List parent directory contents
         run: ls -la .
+
+      # Environment
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@v0.8.9
+        with:
+          environments: build
+          locked: false
+          manifest-path: mechdriver/pixi.yaml
 
       # Test build (release workflow builds and uploads)
       - name: Build

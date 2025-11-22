@@ -24,10 +24,32 @@ jobs:
           frozen: true
 
       # TEMPORARY (try simple-setup)
-      - name: Build
-        run: |
-          pixi run --frozen simple-setup
-          pixi lock
+      - name: Checkout autochem
+        uses: actions/checkout@v4
+        with:
+          repository: Auto-Mech/autochem
+          path: ../autochem
+
+      - name: Checkout autoio
+        uses: actions/checkout@v4
+        with:
+          repository: Auto-Mech/autoio
+          path: ../autoio
+
+      - name: Checkout autofile
+        uses: actions/checkout@v4
+        with:
+          repository: Auto-Mech/autofile
+          path: ../autofile
+
+      - name: Checkout mechanalyzer
+        uses: actions/checkout@v4
+        with:
+          repository: Auto-Mech/mechanalyzer
+          path: ../mechanalyzer
+
+      - name: List parent directory contents
+        run: ls -la ..
 
       # Test build (release workflow builds and uploads)
       - name: Build
